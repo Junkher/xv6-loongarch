@@ -1,11 +1,39 @@
-# xv6-loongarch的安装使用
+# 关于
 
 xv6是 麻省理工的一个教学操作系统，是 Dennis Ritchie 和 Ken Thompson 的 Unix 的重新实现版本 6 (v6)。 被广泛应用于操作系统教学课程，现有x86和[RISC-V](https://github.com/mit-pdos/xv6-riscv)版本。其中x86版本已停止维护和更新。
 
 LoongArch是由我国龙芯中科研发的自主指令系统（龙芯架构）。
 
-本项目将xv6移植到LoongArch平台上，感谢张福新老师提供的初始版本，下面将介绍如何在Ubuntu 20.04中通过QEMU模拟器（在PC上模拟LoongArch硬件）编译xv6并运行调试。
+本项目将xv6移植到LoongArch平台上，另外移植了部分szu教学实验和Mit6.S081课程实验，撰写了相应的描述文档，在此感谢张福新老师提供的初始xv6-loongarch移植版本。
 
+## 主要问题及解决
+
+- 修复usertests无法通过的问题
+
+kernel/proc.c的`growproc`函数中增加一行`if(sz+n>=MAXVA-PGSIZE)return -1`;
+来防止物理内存大于单进程页表内存的上限而撞到`trampoline`。
+
+![](./imgs/Pasted%20image%2020220605191807.png)
+
+
+并且将usertests的`sbrkmuch`中的`BIG`改小成512*1024。
+![](./imgs/Pasted%20image%2020220605191842.png)
+
+## 实验目录
+
+> 实验说明均在对应分支README
+
+1. [lab-system_call](https://github.com/Junkher/xv6-loongarch/tree/lab-system_call)
+2. [lab-priority_scheduling](https://github.com/Junkher/xv6-loongarch/tree/lab-priority_scheduling)
+3. [lab-semaphore](https://github.com/Junkher/xv6-loongarch/tree/lab-semaphore)
+4. [lab-util](https://github.com/Junkher/xv6-loongarch/tree/lab-util)
+5. [lab-pagetables](https://github.com/Junkher/xv6-loongarch/tree/lab-pagetables)
+
+
+
+# xv6-loongarch的安装使用
+
+下面将介绍如何在Ubuntu 20.04中通过QEMU模拟器（在PC上模拟LoongArch硬件）编译xv6并运行。
 
 ## 配置交叉编译环境
 
@@ -152,3 +180,6 @@ target remote :1234
 - i(info) stack
 - i register
 - i thread
+
+
+# 
