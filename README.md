@@ -1,154 +1,105 @@
-# xv6-loongarch的安装使用
+# sleep(easy)
 
-xv6是 麻省理工的一个教学操作系统，是 Dennis Ritchie 和 Ken Thompson 的 Unix 的重新实现版本 6 (v6)。 被广泛应用于操作系统教学课程，现有x86和[RISC-V](https://github.com/mit-pdos/xv6-riscv)版本。其中x86版本已停止维护和更新。
+任务要求:
 
-LoongArch是由我国龙芯中科研发的自主指令系统（龙芯架构）。
+创建一个sleep的用户态程序，sleep应该暂停用户指定的ticks，ticks是由xv6内核定义的一个概念，即来自计时器芯片两次中断之间的时间。您的解决方案应该在文件user/sleep.c中。
 
-本项目将xv6移植到LoongArch平台上，感谢张福新老师提供的初始版本，下面将介绍如何在Ubuntu 20.04中通过QEMU模拟器（在PC上模拟LoongArch硬件）编译xv6并运行调试。
-
-
-## 配置交叉编译环境
-
-为了能编译在LoongArch下运行的xv6内核，需要下载交叉编译工具链。
-```sh
-wget https://github.com/loongson/build-tools/releases/download/2022.05.29/loongarch64-clfs-5.0-cross-tools-gcc-full.tar.xz
-
-sudo tar -vxf loongarch64-clfs-5.0-cross-tools-gcc-full.tar.xz -C /opt
-```
-
-配置交叉编译工具的环境变量
-```sh
-. setenv.sh
-```
-
-`setenv.sh`是一个用于设置环境变量的脚本文件
-```sh
-#!/bin/sh
-set -x
-CC_PREFIX=/opt/cross-tools
-
-export PATH=$CC_PREFIX/bin:$PATH
-export LD_LIBRARY_PATH=$CC_PREFIX/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$CC_PREFIX/loongarch64-unknown-linux-gnu/lib/:$LD_LIBRARY_PATH
-
-set +x
-```
-
-上述的命令只是临时设置环境变量，如需永久设置，可通过修改/etc/profile实现； 
-通过命令检验是否设置成功
-```sh
-loongarch64-unknown-linux-gnu-gcc --version
-```
-
-看到如下提示则说明已正确设置
-![](./imgs/Pasted%20image%2020220528100304.png)
-
-## 编译xv6内核
-
-下载xv6-loongarch
-```
-git clone https://github.com/Junkher/xv6-loongarch.git
-cd xv6-loongarch
-```
-
-开始编译
-```
-make all
-```
-
-终端会输出包括如下部分的编译信息
-![](./imgs/Pasted%20image%2020220528101719.png)
-
-当前路径下会生成`fs.img`文件，`\kernel`下也会生成所有链接时需要的\*.o, \*.d等文件，以及最终的`kernel`二进制文件
-![](./imgs/Pasted%20image%2020220528102004.png)
-
-## QEMU运行xv6-loongarch
-
-```bash
-cd qemu-loongarch-runenv
-```
-
-通过脚本文件`./run_loongarch.sh`的-k参数，指定我们编译好的xv6-loongarch内核，即可启动仿真运行
-```bash
-./run_loongarch.sh -k ../kernel/kernel
-```
-
-启动后如下图所示，按下“Ctrl” + “A”组合键，松开后再按"X"来退出QEMU。
-
-![](./imgs/Pasted%20image%2020220602102051.png)
+~~~shell
+$./test.sh
+init: starting sh
+$sleep 10
+(运行一会儿什么也不会发生)
+~~~
 
 
-# 调试观察
 
-## GDB工具安装使用
+1. 可以参考user/echo.c,user/grep.c,user/grep.c,user/rm.c,了解如何传递给程序的命令行参数。
+2. 如果用户忘记传递参数，sleep应该打印一条错误消息。
+3. 字符串可以通过atoi转化成为整数。
+4. 使用系统调用sleep
+5. 在Makefile文件里添加你的sleep到UPROGS，完成后./test.sh可以运行xv6。
 
-安装一些必要依赖，根据编译时的报错情况自行安装所需依赖
-```sh
-sudo apt install texinfo bison flex libgmp-dev
-```
+# pingpong(easy)
 
-编译gdb工具，大概需要等待几分钟的时间
-```sh
-git clone https://github.com/foxsen/binutils-gdb 
-cd inutils-gdb 
-git checkout loongarch-v2022-03-10 
-mkdir build 
-cd build 
-../configure --target=loongarch64-unknown-linux-gnu --prefix=/opt/gdb 
-make 
-make install
-```
+任务要求:
 
-查看自定义的安装路径下的文件，如下图所示
-![](./imgs/Pasted%20image%2020220602095832.png)
+编写一个程序，使用unix系统调用一对管道在两个进程之间"pingpong"一个字节，一个管道用于每个方向。parent应该向child发送一个字节，子进程应该打印"<pid>:receive ping",其中<pid>是它的进程id，将管道上的字节写入父进程，然后退出；parent应该child那读取字节，打印"<pid>:receive pong"然后退出。您的解决方案应该在文件user/pingpong.c中。
 
+1. 使用pipe创建管道
 
-## GDB调试观察
+2. 使用fork创建一个child
 
-使用-D参数启动调试模式，实际上是执行调试服务器gdbserver的角色，默认监听TCP::1234端口，等待gdb客户端的接入。
-```sh
-./run_loongarch.sh -k ../kernel/kernel -D
-```
+3. 使用read从pipe读取，并用write写入管道
 
-![](./imgs/Pasted%20image%2020220602105307.png)
+4. 使用getpid查找调用进程的进程id
 
-此时在另一个终端上启动gdb，并指定被调试对象(编译好的kernel文件路径)
-```bash
-/opt/gdb/bin/loongarch64-unknown-linux-gnu-gdb ../kernel/kernel
-```
+5. 将程序添加到makefile中的UPROGS
 
-![](./imgs/Pasted%20image%2020220602105953.png)
+6. xv6上的用户程序有一组有限的函数库可供他们使用。您可以在user/user.h中看到列表，还有一些位于user/lib.c,user/printf.c和user/umalloc.c中。
 
+~~~shell
+$./test.sh
+init: starting sh
+$pingpong
+4: received ping
+3: received pong
+$
+~~~
 
-在gdb命令提示符下执行`target remote :1234`命令连接到xv6目标系统上
-```gdb
-target remote :1234
-```
+# primes(moderate)/(hard)   
 
-![](./imgs/Pasted%20image%2020220602110048.png)
+任务要求:
 
-使用`b`命令在kernel/main.c的函数入口设置断点，并使用`c`命令继续执行xv6内核代码，直到碰到断点
-![](./imgs/Pasted%20image%2020220602111325.png)
+使用管道编写一个并发版本的筛。[方法](https://swtch.com/~rsc/thread/)中详细写明了做法。您的解决方案应该在文件user/primes.c中。
 
-此时xv6的输出窗口中显示了相应的启动过程，但由于设置了断点，仍未到达shell的初始化。
-![](./imgs/Pasted%20image%2020220602111602.png)
+您的目标是使用pipe和fork来设置管道。第一个过程将数字2~35输入管道。对于每个素数，您将安排创建一个进程，该进程通过管道从其左邻居读取并通过另一管道向右邻居写入。由于xv6的文件描述符和进程数量有限，第一个进程可以在35处停止。
 
-## GDB调试基本指令
+1. 小心关闭进程不需要的文件描述符，不然有可能在第一个进程达到35的时候xv6资源不足
+2. 一旦第一个进程达到35，他应该等到整个终止
+3. 将32位int写入管道必格式化的ASCII i/O写入管道要简单
+4. 将程序添加到makefile中的UPROGS
 
-### 运行命令
+~~~shell
+$ ./test.sh
+...
+init: starting sh
+$ primes
+prime 2
+prime 3
+prime 5
+prime 7
+prime 11
+prime 13
+prime 17
+prime 19
+prime 23
+prime 29
+prime 31
+$
+~~~
 
-- r(run)
-- c(continue)
-- n(next)
-- s(step)
-- q(quit)
+# find(moderate)
 
-### 断点
+任务要求:
 
-- b(break n 
+编写一个简单版本的unix查找程序：查找目录树中具有特定名称的所有文件。您的解决方案应该在文件`user/find.c`中。
 
-### 查看运行信息
+1. 查看 user/ls.c 以了解如何读取目录。
+2. 使用递归允许 find 下降到子目录。
+3. 不要递归到“.” 和 ”..”。
+4. 每次运行test.sh会自动重置对文件系统的更改。
+5. 请注意， == 不会像 Python 中那样比较字符串。请改用 strcmp()。
+6. 将程序添加到Makefile 中的`UPROGS`。
 
-- i(info) stack
-- i register
-- i thread
+~~~
+$ ./test.sh
+...
+init: starting sh
+$ echo > b
+$ mkdir a
+$ echo > a/b
+$ find . b
+./b
+./a/b
+$ 
+~~~
