@@ -1,105 +1,47 @@
-# sleep(easy)
+# Print a page table (easy)
 
 任务要求:
 
-创建一个sleep的用户态程序，sleep应该暂停用户指定的ticks，ticks是由xv6内核定义的一个概念，即来自计时器芯片两次中断之间的时间。您的解决方案应该在文件user/sleep.c中。
+定义一个名为`vmprint()`的函数。它应该接受一个`pagetable_t`参数，并以下面描述的格式打印该页表。`在 exec.c 中的return argc`之前插入`if(p->pid==1) vmprint(p->pagetable)`，以打印第一个进程的页表。
 
-~~~shell
-$./test.sh
-init: starting sh
-$sleep 10
-(运行一会儿什么也不会发生)
-~~~
+第一行显示`vmprint`的参数。之后，每个 PTE 都有一行，包括引用树中更深的页表页面的 PTE。每个 PTE 行都缩进了一些`“..”`，表示它在树中的深度。每个 PTE 行显示其页表页中的 PTE 索引、pte 位和从 PTE 中提取的物理地址。不要打印无效的 PTE。在上面的示例中，顶级页表页具有条目 0 和 255 的映射。条目 0 的下一层仅映射了索引 0，而该索引 0 的底层具有条目 0、1 和2 映射。
 
+1. 您可以将`vmprint()`放在`kernel/vm.c`中。
+2. 使用文件 kernel/loongarch.h 末尾的宏。
+3. `在 kernel/defs.h 中定义vmprint`的原型，以便您可以从 exec.c 中调用它。
+4. 在您的 printf 调用中使用`%p`打印出完整的 64 位十六进制 PTE 和地址。
 
-
-1. 可以参考user/echo.c,user/grep.c,user/grep.c,user/rm.c,了解如何传递给程序的命令行参数。
-2. 如果用户忘记传递参数，sleep应该打印一条错误消息。
-3. 字符串可以通过atoi转化成为整数。
-4. 使用系统调用sleep
-5. 在Makefile文件里添加你的sleep到UPROGS，完成后./test.sh可以运行xv6。
-
-# pingpong(easy)
+# A kernel page table per process (hard)
 
 任务要求:
 
-编写一个程序，使用unix系统调用一对管道在两个进程之间"pingpong"一个字节，一个管道用于每个方向。parent应该向child发送一个字节，子进程应该打印"<pid>:receive ping",其中<pid>是它的进程id，将管道上的字节写入父进程，然后退出；parent应该child那读取字节，打印"<pid>:receive pong"然后退出。您的解决方案应该在文件user/pingpong.c中。
+Xv6 有一个内核页表，每当它在内核中执行时都会使用它。内核页表直接映射到物理地址，因此内核虚拟地址*x*映射到物理地址*x*。Xv6 还为每个进程的用户地址空间提供了一个单独的页表，仅包含该进程的用户内存的映射，从虚拟地址零开始。因为内核页表不包含这些映射，所以用户地址在内核中是无效的。因此，当内核需要使用在系统调用中传递的用户指针时（例如，传递给`write() 的缓冲区指针）`)，内核必须首先将指针转换为物理地址。本节和下一节的目标是允许内核直接取消引用用户指针。
 
-1. 使用pipe创建管道
+您的第一项工作是修改内核，以便每个进程在内核中执行时都使用自己的内核页表副本。修改`struct proc`为每个进程维护一个内核页表，并修改调度器在切换进程时切换内核页表。对于这一步，每个进程的内核页表应该与现有的全局内核页表相同。如果`usertests`运行正确，你就通过了这部分的实验。
 
-2. 使用fork创建一个child
+- 为进程的内核页表 添加一个字段到`struct proc 。`
+- 为新进程生成内核页表的合理方法是实现`kvminit`的修改版本，该版本生成新页表，而不是修改`kernel_pagetable`。您需要从`allocproc`调用此函数。
+- 确保每个进程的内核页表都有该进程的内核堆栈的映射。在未修改的 xv6 中，所有内核堆栈都设置在`procinit`中。您需要将部分或全部功能移至`allocproc`。
+- 修改`scheduler()`以将进程的内核页表加载到内核的`satp`寄存器中（请参阅`kvminithart`以获得灵感）。不要忘记在调用`w_satp()` 之后调用`sfence_vma()`。
+- `scheduler()`应该在没有进程运行时 使用`kernel_pagetable 。`
+- `在freeproc`中释放进程的内核页表。
+- 您将需要一种方法来释放页表，而无需同时释放叶物理内存页面。
+- `vmprint`在调试页表时可能会派上用场。
+- 修改xv6功能或添加新功能都可以；您可能至少需要在`kernel/vm.c` 和`kernel/proc.c`中执行此操作。（但是，不要修改`kernel/vmcopyin.c`、`kernel/stats.c`、 `user/usertests.c`和`user/stats.c`。）
+- 缺少页表映射可能会导致内核遇到页面错误。它将打印一个包含`sepc=0x00000000XXXXXXXXX`的错误。 您可以通过在`kernel/kernel.asm中搜索``XXXXXXXX`来找出故障发生的位置。
 
-3. 使用read从pipe读取，并用write写入管道
+# Simplify `copyin/copyinstr` (hard)
 
-4. 使用getpid查找调用进程的进程id
+内核的 `copyin`函数读取用户指针指向的内存。它通过将它们转换为物理地址来实现这一点，内核可以直接取消引用。它通过在软件中遍历进程页表来执行此转换。你在这部分实验中的工作是将用户映射添加到每个进程的内核页表（在上一节中创建），以允许 `copyin`（和相关的字符串函数 `copyinstr`）直接取消引用用户指针。
 
-5. 将程序添加到makefile中的UPROGS
+`将kernel/vm.c中的``copyin` 主体替换为对`copyin_new` 的调用（在 kernel `/vmcopyin.c`中定义）；`对copyinstr`和`copyinstr_new`执行相同的操作。将用户地址的映射添加到每个进程的内核页表，以便 `copyin_new`和`copyinstr_new`工作。
 
-6. xv6上的用户程序有一组有限的函数库可供他们使用。您可以在user/user.h中看到列表，还有一些位于user/lib.c,user/printf.c和user/umalloc.c中。
+该方案依赖于用户虚拟地址范围，不与内核用于其自己的指令和数据的虚拟地址范围重叠。Xv6 使用从零开始的虚拟地址作为用户地址空间，幸运的是内核的内存从更高的地址开始。但是，这种方案确实将用户进程的最大大小限制为小于内核的最低虚拟地址。内核启动后，该地址是xv6 中的`0xC000000`，即 PLIC 寄存器的地址；请参见`kernel/vm.c`、 `kernel/memlayout.h`中的`kvminit()`。您需要修改 xv6 以防止用户进程变得大于 PLIC 地址。
 
-~~~shell
-$./test.sh
-init: starting sh
-$pingpong
-4: received ping
-3: received pong
-$
-~~~
+一些提示：
 
-# primes(moderate)/(hard)   
-
-任务要求:
-
-使用管道编写一个并发版本的筛。[方法](https://swtch.com/~rsc/thread/)中详细写明了做法。您的解决方案应该在文件user/primes.c中。
-
-您的目标是使用pipe和fork来设置管道。第一个过程将数字2~35输入管道。对于每个素数，您将安排创建一个进程，该进程通过管道从其左邻居读取并通过另一管道向右邻居写入。由于xv6的文件描述符和进程数量有限，第一个进程可以在35处停止。
-
-1. 小心关闭进程不需要的文件描述符，不然有可能在第一个进程达到35的时候xv6资源不足
-2. 一旦第一个进程达到35，他应该等到整个终止
-3. 将32位int写入管道必格式化的ASCII i/O写入管道要简单
-4. 将程序添加到makefile中的UPROGS
-
-~~~shell
-$ ./test.sh
-...
-init: starting sh
-$ primes
-prime 2
-prime 3
-prime 5
-prime 7
-prime 11
-prime 13
-prime 17
-prime 19
-prime 23
-prime 29
-prime 31
-$
-~~~
-
-# find(moderate)
-
-任务要求:
-
-编写一个简单版本的unix查找程序：查找目录树中具有特定名称的所有文件。您的解决方案应该在文件`user/find.c`中。
-
-1. 查看 user/ls.c 以了解如何读取目录。
-2. 使用递归允许 find 下降到子目录。
-3. 不要递归到“.” 和 ”..”。
-4. 每次运行test.sh会自动重置对文件系统的更改。
-5. 请注意， == 不会像 Python 中那样比较字符串。请改用 strcmp()。
-6. 将程序添加到Makefile 中的`UPROGS`。
-
-~~~
-$ ./test.sh
-...
-init: starting sh
-$ echo > b
-$ mkdir a
-$ echo > a/b
-$ find . b
-./b
-./a/b
-$ 
-~~~
+- `先将copyin()`替换为对`copyin_new` 的调用，并使其工作，然后再转到`copyinstr`。
+- 在内核更改进程的用户映射的每一点，都以相同的方式更改进程的内核页表。这些点包括`fork()`、`exec()`和`sbrk()`。
+- 不要忘记在`userinit`的内核页表中包含第一个进程的用户页表。
+- 用户地址的 PTE 在进程的内核页表中需要什么权限？（在内核模式下无法访问设置 了`PTE_U的页面。）`
+- 不要忘记上述 PLIC 限制。
