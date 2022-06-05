@@ -1,5 +1,7 @@
 # 关于
 
+> proj95：开源操作系统的LoongArch移植-MIT XV6教学系统
+
 xv6是 麻省理工的一个教学操作系统，是 Dennis Ritchie 和 Ken Thompson 的 Unix 的重新实现版本 6 (v6)。 被广泛应用于操作系统教学课程，现有x86和[RISC-V](https://github.com/mit-pdos/xv6-riscv)版本。其中x86版本已停止维护和更新。
 
 LoongArch是由我国龙芯中科研发的自主指令系统（龙芯架构）。
@@ -25,10 +27,8 @@ kernel/proc.c的`growproc`函数中增加一行`if(sz+n>=MAXVA-PGSIZE)return -1`
 
 1. [lab-system_call](https://github.com/Junkher/xv6-loongarch/tree/lab-system_call)
 2. [lab-priority_scheduling](https://github.com/Junkher/xv6-loongarch/tree/lab-priority_scheduling)
-3. [lab-semaphore](https://github.com/Junkher/xv6-loongarch/tree/lab-semaphore)
-4. [lab-util](https://github.com/Junkher/xv6-loongarch/tree/lab-util)
-5. [lab-pagetables](https://github.com/Junkher/xv6-loongarch/tree/lab-pagetables)
-
+3. [lab-util](https://github.com/Junkher/xv6-loongarch/tree/lab-util)
+4. [lab-pagetables](https://github.com/Junkher/xv6-loongarch/tree/lab-pagetables)
 
 
 # xv6-loongarch的安装使用
